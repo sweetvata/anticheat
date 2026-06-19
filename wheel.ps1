@@ -18,6 +18,11 @@ public class Bug {
     }
 }
 
+public class BugSwarm {
+    public System.Collections.Generic.List<Bug> Bugs=new System.Collections.Generic.List<Bug>();
+    public void MoveAll(int W,int H){foreach(var b in Bugs)b.Move(W,H);}
+}
+
 public class GamePanel : Panel {
     public GamePanel(){
         this.DoubleBuffered=true;
@@ -68,11 +73,11 @@ $script:a=0.0; $script:ticks=0; $script:stopped=$false; $script:result=''
 
 # Жуки через C# класс
 $rng=New-Object System.Random
-$script:bugs=New-Object 'System.Collections.Generic.List[Bug]'
+$script:swarm=New-Object BugSwarm
 for($i=0;$i-lt 20;$i++){
-    $vx=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $vy=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    $script:bugs.Add([Bug]::new(
+    $vx=[float](($rng.NextDouble()*8+5)*(if($rng.Next(2)){1}else{-1}))
+    $vy=[float](($rng.NextDouble()*8+5)*(if($rng.Next(2)){1}else{-1}))
+    $script:swarm.Bugs.Add([Bug]::new(
         [float]$rng.Next(50,1800),
         [float]$rng.Next(50,900),
         $vx,$vy,$rng.Next(45,80)
@@ -95,7 +100,7 @@ $script:panel.Add_Paint({
 
     $g.DrawImage($script:bgImg,0,0,$W,$H)
 
-    foreach($b in $script:bugs){
+    foreach($b in $script:swarm.Bugs){
         $g.DrawImage($script:bgImg,[int]$b.X,[int]$b.Y,$b.Size,$b.Size)
     }
 
@@ -173,7 +178,7 @@ $t1=New-Object System.Windows.Forms.Timer;$t1.Interval=16
 $t1.Add_Tick({
     $script:ticks++
     $W=$script:panel.Width;$H=$script:panel.Height
-    for($i=0;$i-lt $script:bugs.Count;$i++){$script:bugs[$i].Move($W,$H)}
+    $script:swarm.MoveAll($W,$H)
     if(-not $script:stopped){
         $ms=$script:ticks*16
         if($ms -lt 10000){$script:a=($script:a+12)%360}
