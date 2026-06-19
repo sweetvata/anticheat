@@ -103,24 +103,29 @@ $script:panel.Dock = 'Fill'
 $script:panel.BackColor = 'Black'
 $script:form.Controls.Add($script:panel)
 
-# Жуки
+# Жуки — 40 до результата
 $script:bm = New-Object BugManager
 $rng = New-Object System.Random
-for ($i = 0; $i -lt 20; $i++) {
-    $sz = $rng.Next(50, 85)
-    $pb = New-Object System.Windows.Forms.PictureBox
-    $pb.Width = $sz; $pb.Height = $sz
-    $pb.SizeMode = 'StretchImage'
-    $pb.Image = $script:bgImg
-    $pb.Left = $rng.Next(0, 1800)
-    $pb.Top = $rng.Next(0, 900)
-    $script:panel.Controls.Add($pb)
-    $vx = [float]($rng.NextDouble() * 10 + 6)
-    $vy = [float]($rng.NextDouble() * 10 + 6)
-    if ($rng.Next(2) -eq 0) { $vx = -$vx }
-    if ($rng.Next(2) -eq 0) { $vy = -$vy }
-    $script:bm.Add($pb, $vx, $vy)
+
+function Add-Bugs($count, $speed) {
+    for ($i = 0; $i -lt $count; $i++) {
+        $sz = $rng.Next(50, 85)
+        $pb = New-Object System.Windows.Forms.PictureBox
+        $pb.Width = $sz; $pb.Height = $sz
+        $pb.SizeMode = 'StretchImage'
+        $pb.Image = $script:bgImg
+        $pb.Left = $rng.Next(0, 1800)
+        $pb.Top = $rng.Next(0, 900)
+        $script:panel.Controls.Add($pb)
+        $vx = [float]($rng.NextDouble() * $speed + $speed * 0.5)
+        $vy = [float]($rng.NextDouble() * $speed + $speed * 0.5)
+        if ($rng.Next(2) -eq 0) { $vx = -$vx }
+        if ($rng.Next(2) -eq 0) { $vy = -$vy }
+        $script:bm.Add($pb, $vx, $vy)
+    }
 }
+
+Add-Bugs 40 6
 
 $script:panel.Add_Paint({
     param($s, $e)
@@ -131,7 +136,7 @@ $script:panel.Add_Paint({
 
     $g.DrawImage($script:bgImg, 0, 0, $W, $H)
 
-    $r = [int]([Math]::Min($W, $H) * 0.38)
+    $r = [int]([Math]::Min($W, $H) * 0.26)
     $cx = [int]($W / 2); $cy = [int]($H / 2)
     $x = $cx - $r; $y = $cy - $r; $d = $r * 2
 
@@ -181,11 +186,11 @@ $script:panel.Add_Paint({
     $ab.Dispose(); $ap.Dispose()
 
     if ($script:stopped) {
-        $rfn = New-Object System.Drawing.Font('Arial', 56, [System.Drawing.FontStyle]::Bold)
+        $rfn = New-Object System.Drawing.Font('Arial', 120, [System.Drawing.FontStyle]::Bold)
         $rsf = New-Object System.Drawing.StringFormat
         $rsf.Alignment = 'Center'; $rsf.LineAlignment = 'Center'
-        $rrc = New-Object System.Drawing.RectangleF(0, [float]($cy - $r - 110), [float]$W, 110)
-        $rbg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(200, 0, 0, 0))
+        $rrc = New-Object System.Drawing.RectangleF(0, 0, [float]$W, [float]$H)
+        $rbg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(160, 0, 0, 0))
         $g.FillRectangle($rbg, $rrc); $rbg.Dispose()
         $rtb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Yellow)
         $g.DrawString($script:result, $rfn, $rtb, $rrc, $rsf)
@@ -199,6 +204,8 @@ $tStop.Add_Tick({
     $norm = ((90 - $script:a) % 360 + 360) % 360
     $idx = [int]([Math]::Floor($norm / $script:sweep)) % $script:N
     $script:result = $script:lbl[$idx]
+    # Добавить ещё 40 быстрых жуков
+    Add-Bugs 40 18
 })
 
 $t1 = New-Object System.Windows.Forms.Timer; $t1.Interval = 16
@@ -217,7 +224,7 @@ $t1.Add_Tick({
     $script:panel.Invalidate()
 })
 
-$tClose = New-Object System.Windows.Forms.Timer; $tClose.Interval = 28000
+$tClose = New-Object System.Windows.Forms.Timer; $tClose.Interval = 38000
 $tClose.Add_Tick({
     $t1.Stop(); $tStop.Stop(); $tClose.Stop()
     [MCI]::Stop()
