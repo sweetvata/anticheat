@@ -173,7 +173,7 @@ $t1=New-Object System.Windows.Forms.Timer;$t1.Interval=16
 $t1.Add_Tick({
     $script:ticks++
     $W=$script:panel.Width;$H=$script:panel.Height
-    foreach($b in $script:bugs){$b.Move($W,$H)}
+    for($i=0;$i-lt $script:bugs.Count;$i++){$script:bugs[$i].Move($W,$H)}
     if(-not $script:stopped){
         $ms=$script:ticks*16
         if($ms -lt 10000){$script:a=($script:a+12)%360}
