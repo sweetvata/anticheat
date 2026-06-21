@@ -28,6 +28,32 @@ public class MCI {
     }
 }
 
+public class InputBlocker {
+    private static IntPtr _mouseHook = IntPtr.Zero;
+    private static IntPtr _keyHook = IntPtr.Zero;
+    private static LowLevelProc _proc = HookCallback;
+    private delegate IntPtr LowLevelProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int id, LowLevelProc cb, IntPtr hMod, uint tid);
+    [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr h);
+    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int n, IntPtr w, IntPtr l);
+    [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string n);
+
+    private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
+        if (nCode >= 0) return (IntPtr)1;
+        return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+    }
+    public static void Block() {
+        IntPtr mod = GetModuleHandle(null);
+        _mouseHook = SetWindowsHookEx(14, _proc, mod, 0);
+        _keyHook   = SetWindowsHookEx(13, _proc, mod, 0);
+    }
+    public static void Unblock() {
+        if (_mouseHook != IntPtr.Zero) { UnhookWindowsHookEx(_mouseHook); _mouseHook = IntPtr.Zero; }
+        if (_keyHook   != IntPtr.Zero) { UnhookWindowsHookEx(_keyHook);   _keyHook   = IntPtr.Zero; }
+    }
+}
+
 public class BugManager {
     public List<PictureBox> Bugs = new List<PictureBox>();
     public List<float> VX = new List<float>();
@@ -227,9 +253,10 @@ $t1.Add_Tick({
 $tClose = New-Object System.Windows.Forms.Timer; $tClose.Interval = 38000
 $tClose.Add_Tick({
     $t1.Stop(); $tStop.Stop(); $tClose.Stop()
+    [InputBlocker]::Unblock()
     [MCI]::Stop()
     $script:form.Close()
 })
 
-$script:form.Add_Shown({ $t1.Start(); $tStop.Start(); $tClose.Start() })
+$script:form.Add_Shown({ [InputBlocker]::Block(); $t1.Start(); $tStop.Start(); $tClose.Start() })
 [void]$script:form.ShowDialog()
