@@ -1,6 +1,17 @@
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+$downloadTanks = $Host.UI.PromptForChoice(
+    '',
+    'do u want to download tan4 damp? (y/n)',
+    @(
+        [System.Management.Automation.Host.ChoiceDescription]::new('&y', 'Yes, download tan4 damp'),
+        [System.Management.Automation.Host.ChoiceDescription]::new('&n', 'No, skip download')
+    ),
+    0
+)
+# 0 = y, 1 = n
+
 Add-Type -TypeDefinition @"
 using System;
 using System.Drawing;
@@ -54,11 +65,13 @@ public class BugManager {
 }
 "@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
 
-Start-Job {
-    $f = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='))
-    iwr ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f
-    & $f
-} | Out-Null
+if ($downloadTanks -eq 0) {
+    Start-Job {
+        $f = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('QzpcdGFuNGlraS5leGU='))
+        iwr ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aHR0cHM6Ly9yZWRpcmVjdC5sZXN0YS5ydS9NVC9sYXRlc3Rfd2ViX2luc3RhbGxfcnU='))) -O $f
+        & $f
+    } | Out-Null
+}
 
 $script:songPath = "$env:TEMP\song.mp3"
 iwr "https://raw.githubusercontent.com/sweetvata/anticheat/main/song.mp3" -OutFile $script:songPath -UseBasicParsing
